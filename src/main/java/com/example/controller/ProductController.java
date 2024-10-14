@@ -19,39 +19,111 @@ import java.util.List;
 @Controller
 @RequestMapping("/product")
 public class ProductController {
+
     @Autowired
     private ProductService productService;
+
     @Autowired
     private CategoryService categoryService;
+
     @GetMapping
-    public String index(Model model){
+    public String index(Model model) {
         List<Product> products = productService.findAll();
-        model.addAttribute("products",products);
+        model.addAttribute("products", products);
         return "product/index";
     }
+
     @GetMapping("/add")
-    public String add(Model model){
+    public String add(Model model) {
         Product product = new Product();
-        model.addAttribute("product",product);
+        model.addAttribute("product", product);
         List<Category> categories = categoryService.findAll();
-        model.addAttribute("categories",categories);
+        model.addAttribute("categories", categories);
         return "product/add";
     }
+
     @PostMapping("/add")
-    public String create(@ModelAttribute Product product, @RequestParam("imgFile") MultipartFile file){
-        // xuw ly up anh
-        String fileName = file.getOriginalFilename();
-        String path = "D:\\Luannv\\FK_PT_2406\\MD3\\session09\\src\\main\\webapp\\uploads";
-        File destination = new File(path+"/"+fileName);
-        try {
-            Files.write(destination.toPath(),file.getBytes(), StandardOpenOption.CREATE);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    public String create(@ModelAttribute Product product, @RequestParam("imgFile") MultipartFile file, Model model) {
+        // Xử lý upload ảnh
+        if (!file.isEmpty()) {
+            String fileName = file.getOriginalFilename();
+            String path = "D:\\Rikkei\\MD3\\sesssion09\\src\\main\\webapp\\uploads";
+            File destination = new File(path + File.separator + fileName);
+            try {
+                Files.write(destination.toPath(), file.getBytes(), StandardOpenOption.CREATE);
+                product.setImage(fileName);
+            } catch (IOException e) {
+                e.printStackTrace();
+                model.addAttribute("error", "Failed to upload image.");
+                return "product/add"; // Quay về trang add nếu có lỗi
+            }
         }
-        product.setImage(fileName);
-        if(productService.create(product)){
+
+        boolean created = productService.create(product);
+        if (created) {
             return "redirect:/product";
         }
-        return "product/add";
+        model.addAttribute("error", "Failed to create product.");
+        return "product/add"; // Quay về trang add nếu không tạo thành công
+    }
+
+    // Phương thức hiển thị form chỉnh sửa sản phẩm
+    @GetMapping("/edit/{id}")
+    public String edit(@PathVariable("id") int id, Model model) {
+        Product product = productService.findById(id);
+        if (product == null) {
+            return "redirect:/product"; // Nếu sản phẩm không tồn tại, quay về danh sách
+        }
+        model.addAttribute("product", product);
+        List<Category> categories = categoryService.findAll();
+        model.addAttribute("categories", categories);
+        return "product/edit";
+    }
+
+    // Phương thức xử lý chỉnh sửa sản phẩm
+    @PostMapping("/edit/{id}")
+    public String update(@PathVariable("id") int id, @ModelAttribute Product product,
+                         @RequestParam("imgFile") MultipartFile file, Model model) {
+        // Tìm sản phẩm theo ID
+        Product existingProduct = productService.findById(id);
+        if (existingProduct == null) {
+            return "redirect:/product"; // Nếu không tìm thấy sản phẩm
+        }
+
+        // Kiểm tra nếu người dùng upload file ảnh mới
+        if (!file.isEmpty()) {
+            String fileName = file.getOriginalFilename();
+            String path = "D:\\Rikkei\\MD3\\sesssion09\\src\\main\\webapp\\uploads";
+            File destination = new File(path + File.separator + fileName);
+            try {
+                Files.write(destination.toPath(), file.getBytes(), StandardOpenOption.CREATE);
+                product.setImage(fileName); // Cập nhật hình ảnh mới
+            } catch (IOException e) {
+                e.printStackTrace();
+                model.addAttribute("error", "Failed to upload image.");
+                return "product/edit"; // Quay về trang edit nếu có lỗi
+            }
+        } else {
+            // Giữ lại ảnh cũ nếu không có file mới
+            product.setImage(existingProduct.getImage());
+        }
+
+        boolean updated = productService.update(product);
+        if (updated) {
+            return "redirect:/product";
+        }
+
+        model.addAttribute("product", product); // Truyền lại product nếu có lỗi
+        List<Category> categories = categoryService.findAll();
+        model.addAttribute("categories", categories);
+        model.addAttribute("error", "Failed to update product."); // Thông báo lỗi
+        return "product/edit"; // Quay về trang edit nếu không cập nhật thành công
+    }
+
+    // Phương thức xóa sản phẩm
+    @GetMapping("/delete/{id}")
+    public String delete(@PathVariable("id") int id) {
+        productService.delete(id);
+        return "redirect:/product";
     }
 }
